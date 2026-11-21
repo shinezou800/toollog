@@ -5,6 +5,39 @@ import App from "./App";
 import { loadTools, STORAGE_KEY } from "./storage";
 import { demoTools } from "./demo";
 
+it("orders imported timestamps by instant without changing their original text", () => {
+  const tools = [
+    {
+      ...demoTools[0],
+      id: "offset",
+      name: "时区偏移",
+      updatedAt: "2026-11-21T08:00:00+08:00",
+    },
+    {
+      ...demoTools[0],
+      id: "seconds",
+      name: "无毫秒",
+      updatedAt: "2026-11-21T01:00:00Z",
+    },
+    {
+      ...demoTools[0],
+      id: "fraction",
+      name: "有毫秒",
+      updatedAt: "2026-11-21T01:00:00.500Z",
+    },
+  ];
+  const raw = JSON.stringify({ version: 1, tools });
+  localStorage.setItem(STORAGE_KEY, raw);
+  render(<App />);
+  const cards = within(screen.getByRole("region", { name: "工具列表" }))
+    .getAllByRole("button")
+    .filter((card) => card.classList.contains("tool-card"));
+  expect(
+    cards.map((card) => card.querySelector(".card-title")?.textContent),
+  ).toEqual(["有毫秒", "无毫秒", "时区偏移"]);
+  expect(localStorage.getItem(STORAGE_KEY)).toBe(raw);
+});
+
 it("adds and edits a tool and trial, preserving changes after remount", async () => {
   const user = userEvent.setup();
   const app = render(<App />);

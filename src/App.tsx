@@ -300,7 +300,7 @@ export default function App({
           .toLowerCase()
           .includes(query.toLowerCase().trim()),
     )
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
 
   return (
     <div className="app-shell">
