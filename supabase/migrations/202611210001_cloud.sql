@@ -17,8 +17,8 @@ create table public.tools (
   description text not null check (length(description) <= 500),
   url text not null check (length(url) <= 2048 and (url = '' or
     (url ~* '^https?://[^[:space:]/@?#]+([/?#][^[:space:]]*)?$'))),
-  category text not null check (category in ('效率办公','开发工具','设计创作','AI 工具','生活实用','其他')),
-  status text not null check (status in ('待试用','试用中','常用','已归档')),
+  category text not null check (category in ('效率办公','开发工具','设计创作','AI 工具','生活实用','其他','AI 编程','AI 助手','效率工具')),
+  status text not null check (status in ('待试用','试用中','常用','已归档','已试用')),
   -- Preserve timestamp spelling in old exports (including omitted fractional
   -- seconds), rather than silently changing imported metadata on read-back.
   updated_at text not null check (isfinite(updated_at::timestamptz))

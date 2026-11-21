@@ -85,3 +85,36 @@ it("refuses service role, secret and malformed keys before browser builds", () =
   expect(isPublishableKey("sb_publishable_synthetic_only")).toBe(true);
   expect(isPublishableKey("malformed")).toBe(false);
 });
+
+it("preflights new categories and tried status without changing the existing library", () => {
+  const tools = (["AI 编程", "AI 助手", "效率工具"] as const).map(
+    (category, index) => ({
+      ...structuredClone(demoTools[0]),
+      id: `new-category-${index}`,
+      category,
+      status: index === 1 ? ("已试用" as const) : ("试用中" as const),
+    }),
+  );
+  const existing = structuredClone([demoTools[0]]);
+  const before = JSON.stringify(existing);
+  const incoming = parseBackup(JSON.stringify({ version: 1, tools }));
+  const result = mergeBackup(existing, incoming);
+  expect(result).toEqual({
+    tools: [...existing, ...tools],
+    added: 3,
+    skipped: 0,
+    conflicts: [],
+  });
+  expect(JSON.stringify(existing)).toBe(before);
+  expect(sameLibrary(incoming, tools)).toBe(true);
+  expect(() =>
+    parseBackup(
+      JSON.stringify({ version: 1, tools: [{ ...tools[0], category: "invalid" }] }),
+    ),
+  ).toThrow();
+  expect(() =>
+    parseBackup(
+      JSON.stringify({ version: 1, tools: [{ ...tools[0], status: "invalid" }] }),
+    ),
+  ).toThrow();
+});

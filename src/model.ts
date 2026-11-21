@@ -1,4 +1,4 @@
-export const statuses = ["待试用", "试用中", "常用", "已归档"] as const;
+export const statuses = ["待试用", "试用中", "常用", "已归档", "已试用"] as const;
 export type Status = (typeof statuses)[number];
 export const categories = [
   "效率办公",
@@ -7,6 +7,9 @@ export const categories = [
   "AI 工具",
   "生活实用",
   "其他",
+  "AI 编程",
+  "AI 助手",
+  "效率工具",
 ] as const;
 export type Category = (typeof categories)[number];
 export const verdicts = ["值得推荐", "继续观察", "暂不适合"] as const;
