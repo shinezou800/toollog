@@ -19,7 +19,9 @@ create table public.tools (
     (url ~* '^https?://[^[:space:]/@?#]+([/?#][^[:space:]]*)?$'))),
   category text not null check (category in ('效率办公','开发工具','设计创作','AI 工具','生活实用','其他')),
   status text not null check (status in ('待试用','试用中','常用','已归档')),
-  updated_at timestamptz not null
+  -- Preserve timestamp spelling in old exports (including omitted fractional
+  -- seconds), rather than silently changing imported metadata on read-back.
+  updated_at text not null check (isfinite(updated_at::timestamptz))
 );
 create table public.trials (
   -- Legacy backups only require trial IDs unique within their parent tool.
@@ -62,7 +64,7 @@ language sql stable security definer set search_path = '' as $$
     'importEnabled', c.import_enabled, 'tools', coalesce((
       select jsonb_agg(jsonb_build_object('id',t.id,'name',t.name,
         'description',t.description,'url',t.url,'category',t.category,
-        'status',t.status,'updatedAt',to_char(t.updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+        'status',t.status,'updatedAt',t.updated_at,
         'trials',coalesce((select jsonb_agg(jsonb_build_object('id',r.id,
           'date',r.date::text,'environment',r.environment,'verdict',r.verdict,
           'notes',r.notes) order by r.id) from public.trials r where r.tool_id=t.id),'[]'::jsonb))
@@ -108,12 +110,12 @@ begin
       if jsonb_typeof(t->field) is distinct from 'string' then raise exception 'INVALID_FIELD'; end if;
     end loop;
     if jsonb_typeof(t->'trials') is distinct from 'array' then raise exception 'INVALID_TRIALS'; end if;
-    if jsonb_array_length(t->'trials')>1000 or (t->>'updatedAt') !~ '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$' then raise exception 'INVALID_FIELD'; end if;
+    if jsonb_array_length(t->'trials')>1000 or (t->>'updatedAt') !~ '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?(Z|[+-]\d{2}:\d{2})$' then raise exception 'INVALID_FIELD'; end if;
     if (select count(*) <> count(distinct value->>'id') from jsonb_array_elements(t->'trials')) then raise exception 'DUPLICATE_ID'; end if;
     if exists(select 1 from public.trials old where old.tool_id=t->>'id' and not exists(
       select 1 from jsonb_array_elements(t->'trials') x where x->>'id'=old.id)) then raise exception 'DELETION_NOT_SUPPORTED'; end if;
     insert into public.tools(id,name,description,url,category,status,updated_at)
-      values(t->>'id',t->>'name',t->>'description',t->>'url',t->>'category',t->>'status',(t->>'updatedAt')::timestamptz)
+      values(t->>'id',t->>'name',t->>'description',t->>'url',t->>'category',t->>'status',t->>'updatedAt')
       on conflict(id) do update set name=excluded.name, description=excluded.description,
         url=excluded.url,category=excluded.category,status=excluded.status,updated_at=excluded.updated_at;
     for r in select value from jsonb_array_elements(t->'trials') loop

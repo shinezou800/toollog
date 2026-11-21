@@ -74,6 +74,7 @@ reset role;
 update toollog_private.control set import_enabled=true;
 set local role authenticated;
 select pg_temp.assert((public.toollog_save(public.toollog_load()->'tools',1,true)->>'revision')::int=2,'explicitly unlocked import works');
+select pg_temp.assert((public.toollog_save(jsonb_set(public.toollog_load()->'tools','{0,updatedAt}','"2026-11-18T08:00:00Z"'),2)->'tools'->0->>'updatedAt')='2026-11-18T08:00:00Z','legacy example timestamps without milliseconds save and round-trip exactly');
 
 set local request.jwt.claim.sub='22222222-2222-4222-8222-222222222222';
 select pg_temp.assert((select count(*)=0 from public.tools),'second user still cannot read populated tools');
