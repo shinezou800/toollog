@@ -1091,12 +1091,14 @@ textarea::placeholder {
   }
   .sidebar {
     transform: translateX(-100%);
+    visibility: hidden;
     width: 238px;
     padding: 28px 20px;
     transition: transform 0.2s;
   }
   .sidebar.is-open {
     transform: translateX(0);
+    visibility: visible;
   }
   .menu-scrim {
     display: block;
