@@ -4,11 +4,13 @@ import App from "./App";
 import { CloudRepository, configuredClient, type CloudSnapshot } from "./cloud";
 import MigrationPanel from "./MigrationPanel";
 
-function getConfiguration() {
+type CloudEnvironment = Record<string, string | undefined>;
+
+function getConfiguration(environment?: CloudEnvironment) {
   try {
-    const env = (
-      import.meta as ImportMeta & { env: Record<string, string | undefined> }
-    ).env;
+    const env =
+      environment ??
+      (import.meta as ImportMeta & { env: CloudEnvironment }).env;
     return {
       client: configuredClient(
         env.VITE_SUPABASE_URL ?? "",
@@ -24,8 +26,12 @@ function getConfiguration() {
   }
 }
 
-export default function CloudApp() {
-  const [configuration] = useState(getConfiguration);
+export default function CloudApp({
+  environment,
+}: {
+  environment?: CloudEnvironment;
+} = {}) {
+  const [configuration] = useState(() => getConfiguration(environment));
   if (!configuration.client)
     return (
       <div className="auth-page">

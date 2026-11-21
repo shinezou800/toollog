@@ -1,4 +1,4 @@
-import { isTool, today, type Tool } from "./model";
+import { normalizeTool, today, type Tool } from "./model";
 
 export function parseBackup(raw: string): Tool[] {
   if (raw.length > 2_000_000)
@@ -11,12 +11,14 @@ export function parseBackup(raw: string): Tool[] {
     data.version !== 1 ||
     !("tools" in data) ||
     !Array.isArray(data.tools) ||
-    !data.tools.every(isTool) ||
-    new Set(data.tools.map((tool) => tool.id)).size !== data.tools.length
+    data.tools.some((tool) => normalizeTool(tool) === null)
   ) {
     throw new Error("备份格式损坏或版本不支持；未修改任何本机或云端记录。");
   }
-  return data.tools;
+  const tools = data.tools.map(normalizeTool) as Tool[];
+  if (new Set(tools.map((tool) => tool.id)).size !== tools.length)
+    throw new Error("备份格式损坏或版本不支持；未修改任何本机或云端记录。");
+  return tools;
 }
 
 // Compare structure rather than object property order; never trim saved text.

@@ -12,7 +12,7 @@
 
 1. Authentication → Sign In / Providers → 关闭 **Allow new users to sign up** 及匿名登录；只保留 Email/Password，不配置公开邀请、OAuth、短信或邮件注册路径。
 2. Authentication → Users → Add user / Create new user，建立唯一管理员并确认邮箱；管理员设置强密码，不依赖免费默认 SMTP 发重置邮件。将此用户 UUID 留在项目管理环境，不能用浏览器传入的邮箱或角色认定管理员。
-3. 在 SQL Editor 执行 `migrations/202611210001_cloud.sql`。**不要执行 `tests/bootstrap.sql`**，它只用于本地临时 PostgreSQL，不适用于 Supabase。
+3. 首次安装时，在 SQL Editor 执行 `migrations/202611210001_cloud.sql`。**不要执行 `tests/bootstrap.sql`**，它只用于本地临时 PostgreSQL，不适用于 Supabase。现有项目已安装时不要重复执行基线迁移。
 4. 在管理端单独绑定管理员；将下方 UUID 占位符替换为第 2 步的真实用户 ID，再运行。实际 UUID、邮箱和密码不提交进 Git。
 
    ```sql
@@ -33,6 +33,12 @@
    浏览器使用的 publishable/旧 anon key 不是管理员权限。**service_role / sb_secret 密钥不需要交给应用**；即使仅用于服务器，也只能放服务端安全配置。不能用 `VITE_` 前缀，不能放 GitHub。构建配置会拒绝 service_role/secret key，避免等到网页运行时才报错、密钥已进产物。
 
 6. `npm ci && npm run build && npm run preview`。未配置时显示锁定的设置页，绝不偷偷回落为“保存成功”的本地模式。新构建输出到 `dist-cloud/`，避免覆盖仍在运行的旧本机原型 `dist/`；私有预览须用生产构建。
+
+## 新增元数据迁移草案（待审阅）
+
+`migrations/202611210002_tool_metadata.sql` 为独立增量迁移草案，新增 nullable 的免费额度、绑卡要求、费用、到期日和 1–5 评分字段，并扩展快照与保存 RPC。新增列不会回填或重写既有工具/手记；旧客户端缺少新 JSON 键时，RPC 保留现有元数据；显式 JSON `null` 才清空字段。此迁移必须在基线迁移 `202611210001_cloud.sql` 之后执行，且仅对已安装该基线的数据库执行一次；成功应用后不要重复运行。**该文件尚未在托管 Supabase 项目执行；应用前必须由所有者审阅并明确批准。**不要仅因它出现在分支、CI 或本地测试中就运行到真实项目。
+
+新版前端连接云端前，必须先获批准并成功应用这份元数据迁移，避免旧版 RPC 忽略新字段。迁移和前端部署是分开的发布步骤；仅合并代码或构建预览不会应用迁移。
 
 ## RLS 与访问边界
 
@@ -72,11 +78,13 @@
 docker run --name toollog-db -e POSTGRES_HOST_AUTH_METHOD=trust --publish 127.0.0.1:55432:5432 --detach postgres:17-bookworm
 docker exec -i toollog-db psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/bootstrap.sql
 docker exec -i toollog-db psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/202611210001_cloud.sql
+docker exec -i toollog-db psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/202611210002_tool_metadata.sql
 docker exec -i toollog-db psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/security.sql
+docker exec -i toollog-db psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/tool_metadata.sql
 ```
 
-使用本地临时容器与合成 UUID；bootstrap 为 auth.uid()/auth.jwt() 提供最小替身。security 测试在真实 PostgreSQL 上验证 RLS/角色权限、其他用户拒绝、原文、事务回滚、CAS 与导入锁，最后 ROLLBACK；**不等于真实 Supabase Auth/公网 API 或真实 iPhone 验证**。
+使用本地临时容器与合成 UUID；bootstrap 为 auth.uid()/auth.jwt() 提供最小替身。security 与 metadata 测试在真实 PostgreSQL 上验证 RLS/角色权限、其他用户拒绝、原文、事务回滚、CAS、导入锁、字段往返和旧客户端兼容，最后 ROLLBACK；**不等于真实 Supabase Auth/公网 API 或真实 iPhone 验证**。
 
-Supabase 的 API 连接还启用 `safeupdate`，普通 PostgreSQL 镜像没有这个扩展。在本地 Supabase PostgreSQL 的另一个一次性空数据库内，以本地 `supabase_admin` 执行 bootstrap 和迁移后，用 `psql -v ON_ERROR_STOP=1 -f supabase/tests/safeupdate.sql` 再跑同一套回归（须保留旁边的 `security.sql`）。该入口加载实际扩展并显示启用状态，确保保存 RPC 的版本更新有明确行条件；**不能关闭安全更新来绕过失败**。此测试也只使用合成用户，不在托管项目或真实数据上执行。
+Supabase 的 API 连接还启用 `safeupdate`，普通 PostgreSQL 镜像没有这个扩展。在本地 Supabase PostgreSQL 的另一个一次性空数据库内，以本地 `supabase_admin` 执行 bootstrap、两份迁移后，用 `psql -v ON_ERROR_STOP=1 -f supabase/tests/safeupdate.sql` 再跑同一套回归（须保留旁边的 `security.sql` 和 `tool_metadata.sql`）。该入口加载实际扩展并显示启用状态，确保保存 RPC 的版本更新有明确行条件；**不能关闭安全更新来绕过失败**。此测试也只使用合成用户，不在托管项目或真实数据上执行。
 
 上线私密预览前还须检查真实项目的所有业务表 RLS、匿名 REST/RPC 的读/写拒绝、非管理员拒绝、管理员登录及两个独立会话同步。两端新增/编辑后刷新重开持久化；实体 iPhone 与桌面模拟结果分开。免费项目可能一周不活跃暂停，没有免费自动数据库备份保障，继续手动导出。

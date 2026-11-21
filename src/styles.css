@@ -849,6 +849,28 @@ textarea::placeholder {
   text-decoration: none;
   min-height: 32px;
 }
+.tool-facts {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 15px;
+  margin: 23px 0 0;
+  padding-top: 19px;
+  border-top: 1px solid var(--border);
+}
+.tool-facts > div {
+  min-width: 0;
+}
+.tool-facts dt {
+  color: var(--text-muted);
+  font-size: 10px;
+  margin-bottom: 8px;
+}
+.tool-facts dd {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
 .trial-heading {
   margin-top: 39px;
 }
@@ -951,6 +973,21 @@ textarea::placeholder {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 17px;
+}
+.metadata-fields {
+  border-top: 1px solid var(--border);
+  margin-top: 26px;
+  padding-top: 22px;
+}
+.metadata-fields h2 {
+  display: block;
+  margin-bottom: 7px;
+}
+.metadata-fields > p {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.7;
+  margin: 0 0 21px;
 }
 .form-actions {
   border-top: 1px solid var(--border);
@@ -1357,6 +1394,10 @@ textarea::placeholder {
   }
   .detail-meta {
     gap: 13px;
+  }
+  .tool-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 17px 14px;
   }
   .trial-heading {
     align-items: flex-start;

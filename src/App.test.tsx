@@ -46,15 +46,39 @@ it("adds and edits a tool and trial, preserving changes after remount", async ()
   await user.type(screen.getByLabelText(/一句话介绍/), "用来整理想法");
   await user.type(screen.getByLabelText(/工具网址/), "https://example.com");
   await user.selectOptions(screen.getByLabelText("使用状态"), "试用中");
+  await user.type(screen.getByLabelText(/免费额度/), "每月 100 次");
+  await user.selectOptions(screen.getByLabelText("是否需要绑卡"), "true");
+  await user.type(screen.getByLabelText(/费用/), "$12 / 月");
+  fireEvent.change(screen.getByLabelText("到期日"), {
+    target: { value: "2026-12-31" },
+  });
+  await user.selectOptions(screen.getByLabelText("评分（1–5）"), "4");
   await user.click(screen.getByRole("button", { name: "保存工具" }));
   expect(
     await screen.findByRole("heading", { name: "我的测试工具" }),
   ).toBeVisible();
+  expect(screen.getByText("每月 100 次")).toBeVisible();
+  expect(screen.getByText("需要绑卡")).toBeVisible();
+  expect(screen.getByText("$12 / 月")).toBeVisible();
+  expect(screen.getByText("2026.12.31")).toBeVisible();
+  expect(screen.getByText("4 / 5")).toBeVisible();
   await user.click(screen.getByRole("button", { name: "编辑工具" }));
+  expect(screen.getByLabelText(/免费额度/)).toHaveValue("每月 100 次");
+  expect(screen.getByLabelText("是否需要绑卡")).toHaveValue("true");
+  expect(screen.getByLabelText(/费用/)).toHaveValue("$12 / 月");
+  expect(screen.getByLabelText("到期日")).toHaveValue("2026-12-31");
+  expect(screen.getByLabelText("评分（1–5）")).toHaveValue("4");
   await user.clear(screen.getByLabelText("工具名称 *"));
   await user.type(screen.getByLabelText("工具名称 *"), "改名后的工具");
   await user.click(screen.getByRole("button", { name: "保存工具" }));
   await screen.findByRole("heading", { name: "改名后的工具" });
+  expect(loadTools().tools[0]).toMatchObject({
+    freeQuota: "每月 100 次",
+    cardRequired: true,
+    cost: "$12 / 月",
+    expiresOn: "2026-12-31",
+    rating: 4,
+  });
   await user.click(screen.getByRole("button", { name: "写手记" }));
   await user.type(screen.getByLabelText(/使用环境/), "手机浏览器");
   await user.type(
@@ -74,6 +98,23 @@ it("adds and edits a tool and trial, preserving changes after remount", async ()
   await user.click(screen.getByRole("button", { name: /改名后的工具/ }));
   expect(screen.getByText("第一次试用，操作很顺手。 下次继续。")).toBeVisible();
   expect(screen.getByText("值得推荐")).toBeVisible();
+  expect(screen.getByText("每月 100 次")).toBeVisible();
+  expect(screen.getByText("4 / 5")).toBeVisible();
+});
+
+it("shows blank imported metadata as unrecorded without rewriting the backup", async () => {
+  const user = userEvent.setup();
+  const raw = JSON.stringify({
+    version: 1,
+    tools: [{ ...demoTools[0], freeQuota: "", cost: "   " }],
+  });
+  localStorage.setItem(STORAGE_KEY, raw);
+  render(<App />);
+  await user.click(screen.getByRole("button", { name: /Notion/ }));
+  const facts = document.querySelector(".tool-facts");
+  expect(facts?.textContent).toContain("免费额度未记录");
+  expect(facts?.textContent).toContain("费用未记录");
+  expect(localStorage.getItem(STORAGE_KEY)).toBe(raw);
 });
 
 it("offers explicit synthetic examples, combines filters and clears empty results", async () => {

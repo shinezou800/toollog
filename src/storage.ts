@@ -1,4 +1,4 @@
-import { isTool, type Tool } from "./model";
+import { normalizeTool, type Tool } from "./model";
 
 export const STORAGE_KEY = "toollog.v1";
 export interface Snapshot {
@@ -19,11 +19,13 @@ export function loadTools(): Snapshot {
       data.version !== 1 ||
       !("tools" in data) ||
       !Array.isArray(data.tools) ||
-      !data.tools.every(isTool) ||
-      new Set(data.tools.map((tool) => tool.id)).size !== data.tools.length
+      data.tools.some((tool) => normalizeTool(tool) === null)
     )
       throw new Error("invalid data");
-    return { tools: data.tools, raw, error: null };
+    const tools = data.tools.map(normalizeTool) as Tool[];
+    if (new Set(tools.map((tool) => tool.id)).size !== tools.length)
+      throw new Error("invalid data");
+    return { tools, raw, error: null };
   } catch {
     return {
       tools: [],
