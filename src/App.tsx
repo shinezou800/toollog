@@ -49,6 +49,7 @@ type View =
   | { page: "detail"; id: string }
   | { page: "tool-form"; id?: string }
   | { page: "trial-form"; toolId: string; trialId?: string };
+type Notice = { text: string; kind: "success" | "refresh" };
 const emptyTool: ToolInput = {
   name: "",
   description: "",
@@ -108,7 +109,7 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("全部工具");
   const [category, setCategory] = useState("全部分类");
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState<Notice | null>(null);
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
   const [mobileMenu, setMobileMenu] = useState(false);
@@ -127,9 +128,10 @@ export default function App() {
   useEffect(() => {
     function onStorage(event: StorageEvent) {
       if (event.key === STORAGE_KEY || event.key === null)
-        setMessage(
-          "另一页面已更新数据。请保留未保存内容，刷新后查看最新记录。",
-        );
+        setMessage({
+          text: "另一页面已更新数据。请保留未保存内容，刷新后查看最新记录。",
+          kind: "refresh",
+        });
     }
     function onUnload(event: BeforeUnloadEvent) {
       if (dirty.current) {
@@ -151,7 +153,7 @@ export default function App() {
       return;
     dirty.current = false;
     setSaveError("");
-    setMessage("");
+    setMessage((notice) => (notice?.kind === "refresh" ? notice : null));
     setView(next);
     setMobileMenu(false);
   }
@@ -162,14 +164,14 @@ export default function App() {
       return;
     }
     setSaving(true);
-    setMessage("");
+    setMessage((notice) => (notice?.kind === "refresh" ? notice : null));
     try {
       const raw = await saveTools(next, snapshot.raw);
       setSnapshot({ tools: next, raw, error: null });
       dirty.current = false;
       setSaveError("");
       setView(destination);
-      setMessage(success);
+      setMessage({ text: success, kind: "success" });
     } catch (error) {
       setSaveError(
         error instanceof Error ? error.message : "保存失败，请重试。",
@@ -197,11 +199,13 @@ export default function App() {
       anchor.download = `toollog-${today()}.json`;
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setMessage(
-        latest.raw === snapshot.raw
-          ? "备份已生成，请妥善保存下载的 JSON 文件。"
-          : "已备份本机最新数据。另一页面有更新，请刷新列表后再编辑。",
-      );
+      setMessage({
+        text:
+          latest.raw === snapshot.raw
+            ? "备份已生成，请妥善保存下载的 JSON 文件。"
+            : "已备份本机最新数据。另一页面有更新，请刷新列表后再编辑。",
+        kind: latest.raw === snapshot.raw ? "success" : "refresh",
+      });
     } catch {
       setSaveError("无法生成备份，请检查浏览器下载权限后重试。");
     }
@@ -310,11 +314,11 @@ export default function App() {
           {message && (
             <div className="toast" role="status">
               <Check size={17} />
-              <span>{message}</span>
+              <span>{message.text}</span>
               <button
                 className="icon-button"
                 aria-label="关闭提示"
-                onClick={() => setMessage("")}
+                onClick={() => setMessage(null)}
               >
                 <X size={16} />
               </button>

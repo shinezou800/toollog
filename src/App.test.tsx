@@ -213,3 +213,27 @@ it("exports the latest persisted library rather than a stale tab snapshot", asyn
     vi.unstubAllGlobals();
   }
 });
+
+it("retains a cross-tab refresh warning while opening and saving a stale editor", async () => {
+  const user = userEvent.setup();
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({ version: 1, tools: [demoTools[0]] }),
+  );
+  render(<App />);
+  const latest = JSON.stringify({
+    version: 1,
+    tools: [{ ...demoTools[0], description: "另一页面的新介绍" }],
+  });
+  localStorage.setItem(STORAGE_KEY, latest);
+  fireEvent(window, new StorageEvent("storage", { key: STORAGE_KEY }));
+  expect(screen.getByRole("status")).toHaveTextContent("另一页面已更新数据");
+  await user.click(screen.getByRole("button", { name: /Notion/ }));
+  await user.click(screen.getByRole("button", { name: "编辑工具" }));
+  expect(screen.getByRole("status")).toHaveTextContent("另一页面已更新数据");
+  await user.type(screen.getByLabelText(/一句话介绍/), "不能覆盖最新内容");
+  await user.click(screen.getByRole("button", { name: "保存工具" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("另一页面已修改记录");
+  expect(screen.getByRole("status")).toHaveTextContent("另一页面已更新数据");
+  expect(localStorage.getItem(STORAGE_KEY)).toBe(latest);
+});
