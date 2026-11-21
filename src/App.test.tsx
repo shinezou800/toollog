@@ -61,6 +61,67 @@ it("offers explicit synthetic examples, combines filters and clears empty result
   expect(screen.queryByText("Notion")).not.toBeInTheDocument();
 });
 
+it("preserves the complete edited trial text in storage, detail and reopened editor", async () => {
+  const user = userEvent.setup();
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({ version: 1, tools: [demoTools[0]] }),
+  );
+  let app = render(<App />);
+  await user.click(screen.getByRole("button", { name: /Notion/ }));
+  await user.click(screen.getByRole("button", { name: /编辑 .* 手记/ }));
+  const notes = `\n  第一行：保留缩进、空行和 emoji 📝\n\n${"完整长行，不应截断。".repeat(80)}\n  最后一行也有空格  \n\n`;
+  const environment = "  iPhone Safari / 周计划  ";
+  fireEvent.change(screen.getByLabelText(/试用笔记/), {
+    target: { value: notes },
+  });
+  fireEvent.change(screen.getByLabelText(/使用环境/), {
+    target: { value: environment },
+  });
+  await user.click(screen.getByRole("button", { name: "保存手记" }));
+  await screen.findByRole("status");
+  expect(loadTools().tools[0].trials[0].notes).toBe(notes);
+  expect(loadTools().tools[0].trials[0].environment).toBe(environment);
+  expect(app.container.querySelector(".trial-notes")?.textContent).toBe(notes);
+  await user.click(screen.getByRole("button", { name: /编辑 .* 手记/ }));
+  expect(screen.getByLabelText(/试用笔记/)).toHaveValue(notes);
+  app.unmount();
+
+  app = render(<App />);
+  await user.click(screen.getByRole("button", { name: /Notion/ }));
+  expect(app.container.querySelector(".trial-notes")?.textContent).toBe(notes);
+  await user.click(screen.getByRole("button", { name: /编辑 .* 手记/ }));
+  expect(screen.getByLabelText(/试用笔记/)).toHaveValue(notes);
+  expect(screen.getByLabelText(/使用环境/)).toHaveValue(environment);
+});
+
+it("does not show an earlier save success alongside a failed trial save", async () => {
+  const user = userEvent.setup();
+  render(<App />);
+  await user.click(screen.getByRole("button", { name: "添加第一个工具" }));
+  await user.type(screen.getByLabelText("工具名称 *"), "保存反馈");
+  await user.click(screen.getByRole("button", { name: "保存工具" }));
+  expect(await screen.findByRole("status")).toHaveTextContent("工具已添加");
+  await user.click(screen.getByRole("button", { name: "写手记" }));
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  const notes = "\n  保存失败也不能丢失草稿  \n";
+  fireEvent.change(screen.getByLabelText(/试用笔记/), {
+    target: { value: notes },
+  });
+  const write = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+    throw new DOMException("Full", "QuotaExceededError");
+  });
+  await user.click(screen.getByRole("button", { name: "保存手记" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("保存失败");
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  expect(screen.getByLabelText(/试用笔记/)).toHaveValue(notes);
+  expect(loadTools().tools[0].trials).toHaveLength(0);
+  write.mockRestore();
+  await user.click(screen.getByRole("button", { name: "保存手记" }));
+  expect(await screen.findByRole("status")).toHaveTextContent("试用手记已保存");
+  expect(loadTools().tools[0].trials[0].notes).toBe(notes);
+});
+
 it("keeps a draft and reports a quota failure, allowing retry", async () => {
   const user = userEvent.setup();
   render(<App />);

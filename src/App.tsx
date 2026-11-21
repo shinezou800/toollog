@@ -151,6 +151,7 @@ export default function App() {
       return;
     dirty.current = false;
     setSaveError("");
+    setMessage("");
     setView(next);
     setMobileMenu(false);
   }
@@ -161,6 +162,7 @@ export default function App() {
       return;
     }
     setSaving(true);
+    setMessage("");
     try {
       const raw = await saveTools(next, snapshot.raw);
       setSnapshot({ tools: next, raw, error: null });
@@ -958,11 +960,7 @@ function TrialForm({
         onChange={onDirty}
         onSubmit={(event) => {
           event.preventDefault();
-          onSave({
-            ...input,
-            environment: input.environment.trim(),
-            notes: input.notes.trim(),
-          });
+          onSave(input);
         }}
       >
         <div className="form-row">
