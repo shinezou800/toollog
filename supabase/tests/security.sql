@@ -1,7 +1,7 @@
 -- Real PostgreSQL permission/transaction tests. Entire suite rolls back.
 begin;
 insert into auth.users(id) values ('11111111-1111-4111-8111-111111111111'),('22222222-2222-4222-8222-222222222222');
-update toollog_private.control set admin_id='11111111-1111-4111-8111-111111111111';
+update toollog_private.control set admin_id='11111111-1111-4111-8111-111111111111' where singleton;
 
 create function pg_temp.assert(ok boolean, label text) returns void language plpgsql as $$
 begin if ok is distinct from true then raise exception 'FAIL: %',label; end if; end;
@@ -71,7 +71,7 @@ set local request.jwt.claims='{"is_anonymous":true}';
 select pg_temp.assert(not public.toollog_is_admin(),'anonymous Auth sessions cannot operate even with matching UID');
 set local request.jwt.claims='{}';
 reset role;
-update toollog_private.control set import_enabled=true;
+update toollog_private.control set import_enabled=true where singleton;
 set local role authenticated;
 select pg_temp.assert((public.toollog_save(public.toollog_load()->'tools',1,true)->>'revision')::int=2,'explicitly unlocked import works');
 select pg_temp.assert((public.toollog_save(jsonb_set(public.toollog_load()->'tools','{0,updatedAt}','"2026-11-18T08:00:00Z"'),2)->'tools'->0->>'updatedAt')='2026-11-18T08:00:00Z','legacy example timestamps without milliseconds save and round-trip exactly');

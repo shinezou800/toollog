@@ -77,4 +77,6 @@ docker exec -i toollog-db psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/s
 
 使用本地临时容器与合成 UUID；bootstrap 为 auth.uid()/auth.jwt() 提供最小替身。security 测试在真实 PostgreSQL 上验证 RLS/角色权限、其他用户拒绝、原文、事务回滚、CAS 与导入锁，最后 ROLLBACK；**不等于真实 Supabase Auth/公网 API 或真实 iPhone 验证**。
 
+Supabase 的 API 连接还启用 `safeupdate`，普通 PostgreSQL 镜像没有这个扩展。在本地 Supabase PostgreSQL 的另一个一次性空数据库内，以本地 `supabase_admin` 执行 bootstrap 和迁移后，用 `psql -v ON_ERROR_STOP=1 -f supabase/tests/safeupdate.sql` 再跑同一套回归（须保留旁边的 `security.sql`）。该入口加载实际扩展并显示启用状态，确保保存 RPC 的版本更新有明确行条件；**不能关闭安全更新来绕过失败**。此测试也只使用合成用户，不在托管项目或真实数据上执行。
+
 上线私密预览前还须检查真实项目的所有业务表 RLS、匿名 REST/RPC 的读/写拒绝、非管理员拒绝、管理员登录及两个独立会话同步。两端新增/编辑后刷新重开持久化；实体 iPhone 与桌面模拟结果分开。免费项目可能一周不活跃暂停，没有免费自动数据库备份保障，继续手动导出。

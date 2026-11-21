@@ -129,7 +129,7 @@ begin
           verdict=excluded.verdict, notes=excluded.notes;
     end loop;
   end loop;
-  update toollog_private.control set revision=revision+1;
+  update toollog_private.control set revision=revision+1 where singleton;
   return toollog_private.snapshot();
 end;
 $$;
