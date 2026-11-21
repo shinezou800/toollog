@@ -15,6 +15,7 @@ import {
   CheckCheck,
   ChevronDown,
   Clock3,
+  Cloud,
   ExternalLink,
   FlaskConical,
   FolderOpen,
@@ -795,6 +796,7 @@ export default function App({
           {view.page === "tool-form" && (
             <ToolForm
               key={view.id ?? "new"}
+              cloud={cloud}
               tool={selected}
               error={saveError}
               disabled={!!snapshot.error || saving}
@@ -840,6 +842,7 @@ export default function App({
           {view.page === "trial-form" && selected && (
             <TrialForm
               key={view.trialId ?? "new"}
+              cloud={cloud}
               tool={selected}
               trial={selected.trials.find((trial) => trial.id === view.trialId)}
               error={saveError}
@@ -892,6 +895,7 @@ export default function App({
 }
 
 type FormProps = {
+  cloud: boolean;
   error: string;
   disabled: boolean;
   headingRef: React.RefObject<HTMLHeadingElement | null>;
@@ -899,6 +903,7 @@ type FormProps = {
   onCancel: () => void;
 };
 function ToolForm({
+  cloud,
   tool,
   error,
   disabled,
@@ -1020,8 +1025,8 @@ function ToolForm({
         )}
         <div className="form-actions">
           <span>
-            <HardDrive size={14} />
-            仅保存到当前浏览器
+            {cloud ? <Cloud size={14} /> : <HardDrive size={14} />}
+            {cloud ? "保存到私密云端" : "仅保存到当前浏览器"}
           </span>
           <div>
             <button
@@ -1047,6 +1052,7 @@ function ToolForm({
 }
 
 function TrialForm({
+  cloud,
   tool,
   trial,
   error,
@@ -1140,8 +1146,8 @@ function TrialForm({
         )}
         <div className="form-actions">
           <span>
-            <HardDrive size={14} />
-            仅保存到当前浏览器
+            {cloud ? <Cloud size={14} /> : <HardDrive size={14} />}
+            {cloud ? "保存到私密云端" : "仅保存到当前浏览器"}
           </span>
           <div>
             <button
