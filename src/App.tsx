@@ -42,7 +42,9 @@ import {
   type Trial,
 } from "./model";
 import { demoTools } from "./demo";
-import { loadTools, saveTools, STORAGE_KEY } from "./storage";
+import { loadTools, STORAGE_KEY } from "./storage";
+import type { Snapshot } from "./storage";
+import { localRepository, type Repository } from "./repository";
 
 type View =
   | { page: "library" }
@@ -103,8 +105,25 @@ function Field({
   );
 }
 
-export default function App() {
-  const [snapshot, setSnapshot] = useState(loadTools);
+export default function App({
+  repository = localRepository,
+  initial,
+  onSignOut,
+  libraryExtra,
+}: {
+  repository?: Repository;
+  initial?: Snapshot;
+  onSignOut?: () => Promise<void>;
+  libraryExtra?: (onRefresh: () => void) => ReactNode;
+}) {
+  const [snapshot, setSnapshot] = useState(
+    () =>
+      initial ??
+      (repository.kind === "local"
+        ? loadTools()
+        : { tools: [], raw: null, error: "尚未读取云端记录，请重新登录。" }),
+  );
+  const cloud = repository.kind === "cloud";
   const [view, setView] = useState<View>({ page: "library" });
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("全部工具");
@@ -120,6 +139,48 @@ export default function App() {
     0,
   );
   const dirty = useRef(false);
+  const refreshSequence = useRef(0);
+  const busy = useRef(false);
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const editing = () =>
+    viewRef.current.page === "tool-form" ||
+    viewRef.current.page === "trial-form";
+
+  async function refresh() {
+    const sequence = ++refreshSequence.current;
+    if (dirty.current || busy.current || editing()) return;
+    try {
+      const latest = await repository.load();
+      if (
+        sequence !== refreshSequence.current ||
+        dirty.current ||
+        busy.current ||
+        editing()
+      )
+        return;
+      if (latest.error) throw new Error(latest.error);
+      setSnapshot(latest);
+      setSaveError("");
+    } catch {
+      if (sequence === refreshSequence.current)
+        setSaveError("无法刷新云端记录；当前内容不是最新数据，请联网后重试。");
+    }
+  }
+
+  useEffect(() => {
+    if (!cloud) return;
+    const onFocus = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      ++refreshSequence.current;
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [repository, cloud]);
 
   useEffect(() => {
     heading.current?.focus();
@@ -127,7 +188,7 @@ export default function App() {
   }, [view]);
   useEffect(() => {
     function onStorage(event: StorageEvent) {
-      if (event.key === STORAGE_KEY || event.key === null)
+      if (!cloud && (event.key === STORAGE_KEY || event.key === null))
         setMessage({
           text: "另一页面已更新数据。请保留未保存内容，刷新后查看最新记录。",
           kind: "refresh",
@@ -145,17 +206,20 @@ export default function App() {
       window.removeEventListener("storage", onStorage);
       window.removeEventListener("beforeunload", onUnload);
     };
-  }, []);
+  }, [cloud]);
 
   function navigate(next: View) {
     if (saving) return;
     if (dirty.current && !window.confirm("有尚未保存的内容，确定离开吗？"))
       return;
     dirty.current = false;
+    ++refreshSequence.current;
+    viewRef.current = next;
     setSaveError("");
     setMessage((notice) => (notice?.kind === "refresh" ? notice : null));
     setView(next);
     setMobileMenu(false);
+    if (cloud && next.page === "library") void refresh();
   }
   async function commit(next: Tool[], destination: View, success: string) {
     if (saving) return;
@@ -164,9 +228,11 @@ export default function App() {
       return;
     }
     setSaving(true);
+    busy.current = true;
+    ++refreshSequence.current;
     setMessage((notice) => (notice?.kind === "refresh" ? notice : null));
     try {
-      const raw = await saveTools(next, snapshot.raw);
+      const raw = await repository.save(next, snapshot.raw);
       setSnapshot({ tools: next, raw, error: null });
       dirty.current = false;
       setSaveError("");
@@ -178,10 +244,17 @@ export default function App() {
       );
     } finally {
       setSaving(false);
+      busy.current = false;
     }
   }
-  function exportData() {
-    const latest = loadTools();
+  async function exportData() {
+    let latest: Snapshot;
+    try {
+      latest = await repository.load();
+    } catch {
+      setSaveError("无法读取云端最新数据，未生成过期备份。请联网后重试。");
+      return;
+    }
     if (latest.error) {
       setSaveError(latest.error);
       return;
@@ -200,11 +273,12 @@ export default function App() {
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       setMessage({
-        text:
-          latest.raw === snapshot.raw
+        text: cloud
+          ? "已生成云端最新记录的 JSON 备份，请妥善保存。"
+          : latest.raw === snapshot.raw
             ? "备份已生成，请妥善保存下载的 JSON 文件。"
             : "已备份本机最新数据。另一页面有更新，请刷新列表后再编辑。",
-        kind: latest.raw === snapshot.raw ? "success" : "refresh",
+        kind: cloud || latest.raw === snapshot.raw ? "success" : "refresh",
       });
     } catch {
       setSaveError("无法生成备份，请检查浏览器下载权限后重试。");
@@ -277,7 +351,8 @@ export default function App() {
         </div>
         <div className="sidebar-bottom">
           <span>
-            <HardDrive size={16} /> 仅保存在本机
+            <HardDrive size={16} />{" "}
+            {cloud ? "管理员云端工作空间" : "仅保存在本机"}
           </span>
           <small>你的工具，你的使用手记。</small>
           <span className="version">TOOLLOG / MVP 0.1</span>
@@ -307,8 +382,30 @@ export default function App() {
           </div>
           <span className="local-indicator">
             <span />
-            本机工作空间
+            {cloud ? "私密云端工作空间" : "本机工作空间"}
           </span>
+          {onSignOut && (
+            <button
+              className="text-button"
+              disabled={saving}
+              onClick={async () => {
+                if (
+                  dirty.current &&
+                  !window.confirm(
+                    "有未保存内容，退出后将丢失草稿，确定退出吗？",
+                  )
+                )
+                  return;
+                try {
+                  await onSignOut();
+                } catch {
+                  setSaveError("退出失败，请重试；当前会话仍保持登录。");
+                }
+              }}
+            >
+              退出登录
+            </button>
+          )}
         </header>
         <main>
           {message && (
@@ -329,13 +426,25 @@ export default function App() {
               {snapshot.error}
             </div>
           )}
-          {view.page === "library" && saveError && (
-            <div className="error-banner" role="alert">
-              {saveError}
-            </div>
-          )}
+          {view.page !== "tool-form" &&
+            view.page !== "trial-form" &&
+            saveError && (
+              <div className="error-banner" role="alert">
+                {saveError}
+              </div>
+            )}
           {view.page === "library" && (
             <>
+              {libraryExtra?.(() => void refresh())}
+              {cloud && (
+                <button
+                  className="text-button"
+                  disabled={saving}
+                  onClick={() => void refresh()}
+                >
+                  刷新云端记录
+                </button>
+              )}
               <div className="page-heading">
                 <div>
                   <p className="eyebrow">YOUR PERSONAL TOOLKIT</p>
@@ -561,12 +670,16 @@ export default function App() {
               <div className="local-note">
                 <HardDrive size={17} />
                 <p>
-                  这是你的本机工具库
+                  {cloud ? "这是你的私密云端工具库" : "这是你的本机工具库"}
                   <span>
-                    记录仅保存在当前浏览器，清除浏览器数据会丢失；建议定期导出备份。
+                    {cloud
+                      ? "手机与电脑登录同一管理员账号后可访问；刷新或切回页面获取更新。免费项目可能闲置暂停，请定期导出备份。"
+                      : "记录仅保存在当前浏览器，清除浏览器数据会丢失；建议定期导出备份。"}
                   </span>
                 </p>
-                <span className="note-label">LOCAL FIRST</span>
+                <span className="note-label">
+                  {cloud ? "PRIVATE CLOUD" : "LOCAL FIRST"}
+                </span>
               </div>
             </>
           )}
@@ -714,8 +827,12 @@ export default function App() {
                     : [tool, ...tools],
                   { page: "detail", id: tool.id },
                   selected
-                    ? "工具修改已保存到本机。"
-                    : "工具已添加并保存到本机。",
+                    ? cloud
+                      ? "工具修改已保存到云端。"
+                      : "工具修改已保存到本机。"
+                    : cloud
+                      ? "工具已添加并保存到云端。"
+                      : "工具已添加并保存到本机。",
                 );
               }}
             />
@@ -756,7 +873,7 @@ export default function App() {
                     tool.id === selected.id ? updated : tool,
                   ),
                   { page: "detail", id: selected.id },
-                  "试用手记已保存到本机。",
+                  cloud ? "试用手记已保存到云端。" : "试用手记已保存到本机。",
                 );
               }}
             />
