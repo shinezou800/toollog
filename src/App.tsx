@@ -110,6 +110,7 @@ export default function App() {
   const [category, setCategory] = useState("全部分类");
   const [message, setMessage] = useState("");
   const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [mobileMenu, setMobileMenu] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const tools = snapshot.tools;
@@ -145,6 +146,7 @@ export default function App() {
   }, []);
 
   function navigate(next: View) {
+    if (saving) return;
     if (dirty.current && !window.confirm("有尚未保存的内容，确定离开吗？"))
       return;
     dirty.current = false;
@@ -152,13 +154,15 @@ export default function App() {
     setView(next);
     setMobileMenu(false);
   }
-  function commit(next: Tool[], destination: View, success: string) {
+  async function commit(next: Tool[], destination: View, success: string) {
+    if (saving) return;
     if (snapshot.error) {
       setSaveError(snapshot.error);
       return;
     }
+    setSaving(true);
     try {
-      const raw = saveTools(next, snapshot.raw);
+      const raw = await saveTools(next, snapshot.raw);
       setSnapshot({ tools: next, raw, error: null });
       dirty.current = false;
       setSaveError("");
@@ -168,6 +172,8 @@ export default function App() {
       setSaveError(
         error instanceof Error ? error.message : "保存失败，请重试。",
       );
+    } finally {
+      setSaving(false);
     }
   }
   function exportData() {
@@ -318,7 +324,7 @@ export default function App() {
                 </div>
                 <button
                   className="button primary"
-                  disabled={!!snapshot.error}
+                  disabled={!!snapshot.error || saving}
                   onClick={() => navigate({ page: "tool-form" })}
                 >
                   <Plus size={18} />
@@ -496,7 +502,7 @@ export default function App() {
                       <div className="empty-actions">
                         <button
                           className="button primary"
-                          disabled={!!snapshot.error}
+                          disabled={!!snapshot.error || saving}
                           onClick={() => navigate({ page: "tool-form" })}
                         >
                           <Plus size={17} />
@@ -504,7 +510,7 @@ export default function App() {
                         </button>
                         <button
                           className="button secondary"
-                          disabled={!!snapshot.error}
+                          disabled={!!snapshot.error || saving}
                           onClick={() =>
                             commit(
                               structuredClone(demoTools),
@@ -656,7 +662,7 @@ export default function App() {
               key={view.id ?? "new"}
               tool={selected}
               error={saveError}
-              disabled={!!snapshot.error}
+              disabled={!!snapshot.error || saving}
               headingRef={heading}
               onDirty={() => {
                 dirty.current = true;
@@ -698,7 +704,7 @@ export default function App() {
               tool={selected}
               trial={selected.trials.find((trial) => trial.id === view.trialId)}
               error={saveError}
-              disabled={!!snapshot.error}
+              disabled={!!snapshot.error || saving}
               headingRef={heading}
               onDirty={() => {
                 dirty.current = true;
@@ -793,7 +799,13 @@ function ToolForm({
         {tool ? "编辑工具" : "添加一个好工具"}
       </h1>
       <p className="subtitle">从一个名字开始，慢慢记录它的可能性。</p>
-      <form className="editor" onSubmit={submit} onChange={onDirty}>
+      <form
+        className="editor"
+        inert={disabled}
+        aria-busy={disabled}
+        onSubmit={submit}
+        onChange={onDirty}
+      >
         <Field label="工具名称 *">
           <input
             required
@@ -925,6 +937,8 @@ function TrialForm({
       <p className="subtitle">关于 {tool.name}，这次有什么新发现？</p>
       <form
         className="editor"
+        inert={disabled}
+        aria-busy={disabled}
         onChange={onDirty}
         onSubmit={(event) => {
           event.preventDefault();

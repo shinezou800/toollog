@@ -34,7 +34,52 @@ export function loadTools(): Snapshot {
   }
 }
 
-export function saveTools(tools: Tool[], previousRaw: string | null): string {
+// Read/write IndexedDB transactions serialize saves across tabs, including HTTP
+// LAN origins where Web Locks is unavailable. The actual library stays in
+// localStorage; this empty store is only a browser-managed exclusive write lock.
+export function saveTools(
+  tools: Tool[],
+  previousRaw: string | null,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const unavailable = () =>
+      new Error(
+        "保存失败：无法取得浏览器写入锁。请检查存储权限后重试；表单内容仍保留。",
+      );
+    let request: IDBOpenDBRequest;
+    try {
+      request = indexedDB.open("toollog-write-lock", 1);
+    } catch {
+      reject(unavailable());
+      return;
+    }
+    request.onupgradeneeded = () => request.result.createObjectStore("lock");
+    request.onerror = () => reject(unavailable());
+    request.onsuccess = () => {
+      const database = request.result;
+      const transaction = database.transaction("lock", "readwrite");
+      let raw: string;
+      transaction.oncomplete = () => {
+        database.close();
+        resolve(raw);
+      };
+      transaction.onabort = () => {
+        database.close();
+        reject(unavailable());
+      };
+      transaction.objectStore("lock").get("writer").onsuccess = () => {
+        try {
+          raw = writeTools(tools, previousRaw);
+        } catch (error) {
+          reject(error);
+          transaction.abort();
+        }
+      };
+    };
+  });
+}
+
+function writeTools(tools: Tool[], previousRaw: string | null): string {
   let current: string | null;
   try {
     current = localStorage.getItem(STORAGE_KEY);

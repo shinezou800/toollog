@@ -48,9 +48,9 @@ describe("record validation", () => {
 });
 
 describe("local persistence", () => {
-  it("starts empty and round-trips records and trials", () => {
+  it("starts empty and round-trips records and trials", async () => {
     expect(loadTools()).toEqual({ tools: [], raw: null, error: null });
-    const raw = saveTools(demoTools, null);
+    const raw = await saveTools(demoTools, null);
     expect(loadTools()).toEqual({ tools: demoTools, raw, error: null });
   });
   it.each([
@@ -63,12 +63,23 @@ describe("local persistence", () => {
     expect(loadTools().error).toBeTruthy();
     expect(localStorage.getItem(STORAGE_KEY)).toBe(raw);
   });
-  it("rejects stale writes from another tab", () => {
-    saveTools(demoTools, null);
-    expect(() => saveTools([], null)).toThrow("另一页面已修改记录");
+  it("rejects stale writes from another tab", async () => {
+    await saveTools(demoTools, null);
+    await expect(saveTools([], null)).rejects.toThrow("另一页面已修改记录");
     expect(loadTools().tools).toHaveLength(6);
   });
-  it("reports unavailable storage and failed writes", () => {
+  it("serializes overlapping saves, rejecting the second stale snapshot", async () => {
+    const results = await Promise.allSettled([
+      saveTools([demoTools[0]], null),
+      saveTools([demoTools[1]], null),
+    ]);
+    expect(results.map((result) => result.status)).toEqual([
+      "fulfilled",
+      "rejected",
+    ]);
+    expect(loadTools().tools).toEqual([demoTools[0]]);
+  });
+  it("reports unavailable storage and failed writes", async () => {
     vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new DOMException("Denied", "SecurityError");
     });
@@ -77,6 +88,6 @@ describe("local persistence", () => {
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new DOMException("Full", "QuotaExceededError");
     });
-    expect(() => saveTools(demoTools, null)).toThrow("空间不足");
+    await expect(saveTools(demoTools, null)).rejects.toThrow("空间不足");
   });
 });

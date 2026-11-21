@@ -13,11 +13,14 @@ it("adds and edits a tool and trial, preserving changes after remount", async ()
   await user.type(screen.getByLabelText(/工具网址/), "https://example.com");
   await user.selectOptions(screen.getByLabelText("使用状态"), "试用中");
   await user.click(screen.getByRole("button", { name: "保存工具" }));
-  expect(screen.getByRole("heading", { name: "我的测试工具" })).toBeVisible();
+  expect(
+    await screen.findByRole("heading", { name: "我的测试工具" }),
+  ).toBeVisible();
   await user.click(screen.getByRole("button", { name: "编辑工具" }));
   await user.clear(screen.getByLabelText("工具名称 *"));
   await user.type(screen.getByLabelText("工具名称 *"), "改名后的工具");
   await user.click(screen.getByRole("button", { name: "保存工具" }));
+  await screen.findByRole("heading", { name: "改名后的工具" });
   await user.click(screen.getByRole("button", { name: "写手记" }));
   await user.type(screen.getByLabelText(/使用环境/), "手机浏览器");
   await user.type(
@@ -25,10 +28,12 @@ it("adds and edits a tool and trial, preserving changes after remount", async ()
     "第一次试用，操作很顺手。",
   );
   await user.click(screen.getByRole("button", { name: "保存手记" }));
+  await screen.findByText("第一次试用，操作很顺手。");
   await user.click(screen.getByRole("button", { name: /编辑 .* 手记/ }));
   await user.type(screen.getByLabelText(/试用笔记/), " 下次继续。");
   await user.selectOptions(screen.getByLabelText("试用结论"), "值得推荐");
   await user.click(screen.getByRole("button", { name: "保存手记" }));
+  await screen.findByText("第一次试用，操作很顺手。 下次继续。");
   expect(loadTools().tools[0].trials[0].notes).toContain("下次继续");
   app.unmount();
   render(<App />);
@@ -42,6 +47,7 @@ it("offers explicit synthetic examples, combines filters and clears empty result
   render(<App />);
   expect(screen.queryByText("Notion")).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: /先看看示例/ }));
+  await screen.findByText("Notion");
   expect(loadTools().tools).toHaveLength(6);
   await user.type(screen.getByRole("textbox", { name: "搜索工具" }), "notion");
   expect(screen.getByText("Notion")).toBeVisible();
@@ -65,11 +71,13 @@ it("keeps a draft and reports a quota failure, allowing retry", async () => {
       throw new DOMException("Full", "QuotaExceededError");
     });
   await user.click(screen.getByRole("button", { name: "保存工具" }));
-  expect(screen.getByRole("alert")).toHaveTextContent("保存失败");
+  expect(await screen.findByRole("alert")).toHaveTextContent("保存失败");
   expect(screen.getByLabelText("工具名称 *")).toHaveValue("不能丢的草稿");
   write.mockRestore();
   await user.click(screen.getByRole("button", { name: "保存工具" }));
-  expect(screen.getByRole("heading", { name: "不能丢的草稿" })).toBeVisible();
+  expect(
+    await screen.findByRole("heading", { name: "不能丢的草稿" }),
+  ).toBeVisible();
 });
 
 it("guards invalid input and blocks overwriting corrupt data", async () => {
