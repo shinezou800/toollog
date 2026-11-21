@@ -34,6 +34,13 @@ export type ToolInput = Pick<
   "name" | "description" | "url" | "category" | "status"
 >;
 
+// getRandomValues is also available on HTTP LAN origins, unlike randomUUID.
+export function createId(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
 export function safeUrl(value: string): boolean {
   if (!value) return true;
   try {

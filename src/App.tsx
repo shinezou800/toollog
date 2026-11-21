@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import {
   categories,
+  createId,
   statuses,
   today,
   validateTool,
@@ -675,7 +676,7 @@ export default function App() {
                 }
                 const tool: Tool = {
                   ...input,
-                  id: selected?.id ?? crypto.randomUUID(),
+                  id: selected?.id ?? createId(),
                   updatedAt: new Date().toISOString(),
                   trials: selected?.trials ?? [],
                 };
@@ -711,7 +712,7 @@ export default function App() {
                 }
                 const trial: Trial = {
                   ...input,
-                  id: view.trialId ?? crypto.randomUUID(),
+                  id: view.trialId ?? createId(),
                 };
                 const updated = {
                   ...selected,

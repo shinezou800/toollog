@@ -1,9 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 import { demoTools } from "./demo";
 import { loadTools, saveTools, STORAGE_KEY } from "./storage";
-import { isTool, safeUrl, validateTool, validateTrial } from "./model";
+import {
+  createId,
+  isTool,
+  safeUrl,
+  validateTool,
+  validateTrial,
+} from "./model";
 
 describe("record validation", () => {
+  it("creates unique IDs without secure-context-only randomUUID", () => {
+    vi.spyOn(crypto, "randomUUID").mockImplementation(() => {
+      throw new Error("Unavailable over HTTP");
+    });
+    expect(createId()).toMatch(/^[a-f0-9]{32}$/);
+    expect(createId()).not.toBe(createId());
+  });
   it("rejects executable links and links containing credentials", () => {
     expect(safeUrl("javascript:alert(1)")).toBe(false);
     expect(safeUrl("data:text/html,hello")).toBe(false);
