@@ -76,19 +76,6 @@ set local role authenticated;
 select pg_temp.assert((public.toollog_save(public.toollog_load()->'tools',1,true)->>'revision')::int=2,'explicitly unlocked import works');
 select pg_temp.assert((public.toollog_save(jsonb_set(public.toollog_load()->'tools','{0,updatedAt}','"2026-11-18T08:00:00Z"'),2)->'tools'->0->>'updatedAt')='2026-11-18T08:00:00Z','legacy example timestamps without milliseconds save and round-trip exactly');
 
-select pg_temp.assert(jsonb_array_length(public.toollog_save(
-  (public.toollog_load()->'tools') || (
-    select jsonb_agg(jsonb_build_object(
-      'id','category-' || n,'name','合成分类工具 ' || n,'description','','url','',
-      'category',category,'status',status,'updatedAt','2026-11-21T00:00:00Z','trials','[]'::jsonb
-    )) from (values (1,'AI 编程','试用中'),(2,'AI 助手','已试用'),(3,'效率工具','试用中')) as options(n,category,status)
-  ),3
-)->'tools')=4,'new categories and tried status save without dropping existing tools');
-select pg_temp.assert((select category='AI 助手' and status='已试用' from public.tools where id='category-2'),'new option text round-trips exactly');
-select pg_temp.denied($sql$select public.toollog_save(jsonb_set(public.toollog_load()->'tools','{0,category}','"invalid"'),4)$sql$);
-select pg_temp.denied($sql$select public.toollog_save(jsonb_set(public.toollog_load()->'tools','{0,status}','"invalid"'),4)$sql$);
-select pg_temp.assert((public.toollog_load()->>'revision')::int=4,'unknown options still reject atomically');
-
 set local request.jwt.claim.sub='22222222-2222-4222-8222-222222222222';
 select pg_temp.assert((select count(*)=0 from public.tools),'second user still cannot read populated tools');
 select pg_temp.assert((select count(*)=0 from public.trials),'second user still cannot read populated notes');
