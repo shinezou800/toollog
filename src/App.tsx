@@ -59,6 +59,11 @@ const emptyTool: ToolInput = {
   url: "",
   category: "效率办公",
   status: "待试用",
+  freeQuota: null,
+  cardRequired: null,
+  cost: null,
+  expiresOn: null,
+  rating: null,
 };
 const iconClasses = ["blue", "purple", "orange", "green", "pink", "teal"];
 const dateLabel = (date: string) => date.slice(0, 10).replaceAll("-", ".");
@@ -730,6 +735,42 @@ export default function App({
                     </a>
                   )}
                 </div>
+                <dl className="tool-facts" aria-label="额度与订阅信息">
+                  <div>
+                    <dt>免费额度</dt>
+                    <dd>{selected.freeQuota?.trim() ? selected.freeQuota : "未记录"}</dd>
+                  </div>
+                  <div>
+                    <dt>是否需要绑卡</dt>
+                    <dd>
+                      {selected.cardRequired === null
+                        ? "未记录"
+                        : selected.cardRequired
+                          ? "需要绑卡"
+                          : "无需绑卡"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>费用</dt>
+                    <dd>{selected.cost?.trim() ? selected.cost : "未记录"}</dd>
+                  </div>
+                  <div>
+                    <dt>到期日</dt>
+                    <dd>
+                      {selected.expiresOn
+                        ? dateLabel(selected.expiresOn)
+                        : "未记录"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>评分</dt>
+                    <dd>
+                      {selected.rating === null
+                        ? "未记录"
+                        : `${selected.rating} / 5`}
+                    </dd>
+                  </div>
+                </dl>
               </section>
               <div className="section-heading trial-heading">
                 <div>
@@ -920,6 +961,11 @@ function ToolForm({
           url: tool.url,
           category: tool.category,
           status: tool.status,
+          freeQuota: tool.freeQuota,
+          cardRequired: tool.cardRequired,
+          cost: tool.cost,
+          expiresOn: tool.expiresOn,
+          rating: tool.rating,
         }
       : emptyTool,
   );
@@ -1017,6 +1063,85 @@ function ToolForm({
               ))}
             </select>
           </Field>
+        </div>
+        <div className="metadata-fields">
+          <h2>额度与订阅信息</h2>
+          <p>按你掌握的信息手动记录；留空表示尚未记录。</p>
+          <div className="form-row">
+            <Field label="免费额度" hint="例如：每月 100 次；最多 200 字。">
+              <input
+                maxLength={200}
+                value={input.freeQuota ?? ""}
+                placeholder="未记录"
+                onChange={(event) =>
+                  setInput({
+                    ...input,
+                    freeQuota: event.target.value || null,
+                  })
+                }
+              />
+            </Field>
+            <Field label="是否需要绑卡">
+              <select
+                value={input.cardRequired === null ? "" : String(input.cardRequired)}
+                onChange={(event) =>
+                  setInput({
+                    ...input,
+                    cardRequired:
+                      event.target.value === ""
+                        ? null
+                        : event.target.value === "true",
+                  })
+                }
+              >
+                <option value="">未记录</option>
+                <option value="true">需要绑卡</option>
+                <option value="false">无需绑卡</option>
+              </select>
+            </Field>
+          </div>
+          <div className="form-row">
+            <Field label="费用" hint="可记录币种与计费周期；最多 200 字。">
+              <input
+                maxLength={200}
+                value={input.cost ?? ""}
+                placeholder="未记录"
+                onChange={(event) =>
+                  setInput({ ...input, cost: event.target.value || null })
+                }
+              />
+            </Field>
+            <Field label="到期日">
+              <input
+                type="date"
+                value={input.expiresOn ?? ""}
+                onChange={(event) =>
+                  setInput({ ...input, expiresOn: event.target.value || null })
+                }
+              />
+            </Field>
+          </div>
+          <div className="form-row">
+            <Field label="评分（1–5）">
+              <select
+                value={input.rating === null ? "" : String(input.rating)}
+                onChange={(event) =>
+                  setInput({
+                    ...input,
+                    rating:
+                      event.target.value === "" ? null : Number(event.target.value),
+                  })
+                }
+              >
+                <option value="">未评分</option>
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <option key={value} value={value}>
+                    {value} / 5
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
         </div>
         {error && (
           <div role="alert" className="form-error">

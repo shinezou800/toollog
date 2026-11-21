@@ -4,3 +4,4 @@
 load 'safeupdate';
 show safeupdate.enabled;
 \ir security.sql
+\ir tool_metadata.sql

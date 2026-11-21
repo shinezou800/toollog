@@ -1,7 +1,7 @@
 import type { Tool } from "./model";
 
 // Synthetic examples only: not reviews or claims based on real testing.
-export const demoTools: Tool[] = [
+const syntheticTools = [
   {
     id: "demo-notion",
     name: "Notion",
@@ -80,4 +80,16 @@ export const demoTools: Tool[] = [
     updatedAt: "2026-11-13T08:00:00Z",
     trials: [],
   },
-];
+] satisfies Omit<
+  Tool,
+  "freeQuota" | "cardRequired" | "cost" | "expiresOn" | "rating"
+>[];
+
+export const demoTools: Tool[] = syntheticTools.map((tool) => ({
+  ...tool,
+  freeQuota: null,
+  cardRequired: null,
+  cost: null,
+  expiresOn: null,
+  rating: null,
+}));

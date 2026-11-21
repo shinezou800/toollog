@@ -33,6 +33,41 @@ it("rejects invalid versions, duplicate IDs and damaged notes without partial im
   ).toThrow();
 });
 
+it("normalizes metadata missing from old backups without modifying their source", () => {
+  const legacyTool = JSON.parse(JSON.stringify(demoTools[0])) as Record<
+    string,
+    unknown
+  >;
+  for (const field of [
+    "freeQuota",
+    "cardRequired",
+    "cost",
+    "expiresOn",
+    "rating",
+  ])
+    delete legacyTool[field];
+  const raw = JSON.stringify({ version: 1, tools: [legacyTool] });
+
+  const parsed = parseBackup(raw);
+  expect(parsed[0]).toMatchObject({
+    freeQuota: null,
+    cardRequired: null,
+    cost: null,
+    expiresOn: null,
+    rating: null,
+  });
+  expect(sameLibrary(parsed, [demoTools[0]])).toBe(true);
+  expect(raw).toContain('"id":"demo-notion"');
+  expect(() =>
+    parseBackup(
+      JSON.stringify({
+        version: 1,
+        tools: [{ ...demoTools[0], rating: 6 }],
+      }),
+    ),
+  ).toThrow();
+});
+
 it("skips exact duplicates, blocks changed text and preserves all original content", () => {
   const tool = {
     ...structuredClone(demoTools[0]),

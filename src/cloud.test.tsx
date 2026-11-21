@@ -1,26 +1,59 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, expect, it, vi } from "vitest";
+import { expect, it, vi } from "vitest";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import App from "./App";
 import CloudApp, { AuthenticatedApp } from "./CloudApp";
-import { CloudRepository } from "./cloud";
+import { CloudRepository, decodeSnapshot } from "./cloud";
 import { demoTools } from "./demo";
 import { STORAGE_KEY } from "./storage";
 import type { Repository } from "./repository";
 import MigrationPanel from "./MigrationPanel";
 
 const response = { version: 1, tools: [], revision: 0, importEnabled: false };
-afterEach(() => vi.unstubAllEnvs());
+
+it("normalizes metadata missing from a pre-migration cloud snapshot", () => {
+  const legacyTool = JSON.parse(JSON.stringify(demoTools[0])) as Record<
+    string,
+    unknown
+  >;
+  for (const field of [
+    "freeQuota",
+    "cardRequired",
+    "cost",
+    "expiresOn",
+    "rating",
+  ])
+    delete legacyTool[field];
+  const snapshot = decodeSnapshot({
+    version: 1,
+    tools: [legacyTool],
+    revision: 8,
+    importEnabled: false,
+  });
+  expect(snapshot.tools[0]).toMatchObject({
+    freeQuota: null,
+    cardRequired: null,
+    cost: null,
+    expiresOn: null,
+    rating: null,
+  });
+  expect(snapshot.raw).toBe("8");
+});
 
 it("locks an unconfigured cloud build instead of revealing local records", () => {
-  vi.stubEnv("VITE_SUPABASE_URL", "");
-  vi.stubEnv("VITE_SUPABASE_PUBLISHABLE_KEY", "");
   localStorage.setItem(
     STORAGE_KEY,
     JSON.stringify({ version: 1, tools: demoTools }),
   );
-  render(<CloudApp />);
+  render(
+    <CloudApp
+      environment={{
+        VITE_SUPABASE_URL: "",
+        VITE_SUPABASE_PUBLISHABLE_KEY: "",
+      }}
+    />,
+  );
   expect(
     screen.getByRole("heading", { name: "云端连接尚未就绪" }),
   ).toBeVisible();
@@ -37,10 +70,20 @@ it("binds saves to a cloud revision, refuses stale writes and never stores recor
       error: { code: "40001", message: "STALE_REVISION" },
     });
   const repository = new CloudRepository({ rpc } as unknown as SupabaseClient);
+  const tools = [
+    {
+      ...demoTools[0],
+      freeQuota: "每月 100 次",
+      cardRequired: false,
+      cost: "$12 / 月",
+      expiresOn: "2026-12-31",
+      rating: 5,
+    },
+  ];
   expect((await repository.load()).raw).toBe("0");
-  await expect(repository.save(demoTools, "0")).rejects.toThrow("另一设备");
+  await expect(repository.save(tools, "0")).rejects.toThrow("另一设备");
   expect(rpc).toHaveBeenLastCalledWith("toollog_save", {
-    p_tools: demoTools,
+    p_tools: tools,
     p_revision: 0,
     p_import: false,
   });

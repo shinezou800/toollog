@@ -45,6 +45,15 @@ describe("record validation", () => {
     ).not.toBeNull();
     expect(demoTools.every(isTool)).toBe(true);
   });
+  it("validates nullable metadata, ISO expiration dates and 1–5 integer ratings", () => {
+    expect(validateTool({ ...demoTools[0], freeQuota: "x".repeat(201) })).toContain("免费额度");
+    expect(validateTool({ ...demoTools[0], cost: "x".repeat(201) })).toContain("费用");
+    expect(validateTool({ ...demoTools[0], cardRequired: "yes" as never })).toContain("绑卡");
+    expect(validateTool({ ...demoTools[0], expiresOn: "2026-02-30" })).toContain("到期日");
+    expect(validateTool({ ...demoTools[0], rating: 4.5 })).toContain("1–5");
+    expect(validateTool({ ...demoTools[0], rating: 0 })).toContain("1–5");
+    expect(validateTool({ ...demoTools[0], rating: 5 })).toBeNull();
+  });
 });
 
 describe("local persistence", () => {
@@ -61,6 +70,33 @@ describe("local persistence", () => {
   ])("preserves invalid data instead of silently replacing it: %s", (raw) => {
     localStorage.setItem(STORAGE_KEY, raw);
     expect(loadTools().error).toBeTruthy();
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(raw);
+  });
+  it("normalizes legacy version 1 records without rewriting their stored JSON", () => {
+    const legacyTool = JSON.parse(JSON.stringify(demoTools[0])) as Record<
+      string,
+      unknown
+    >;
+    for (const field of [
+      "freeQuota",
+      "cardRequired",
+      "cost",
+      "expiresOn",
+      "rating",
+    ])
+      delete legacyTool[field];
+    const raw = JSON.stringify({ version: 1, tools: [legacyTool] });
+    localStorage.setItem(STORAGE_KEY, raw);
+    const snapshot = loadTools();
+    expect(snapshot.error).toBeNull();
+    expect(snapshot.tools[0]).toMatchObject({
+      freeQuota: null,
+      cardRequired: null,
+      cost: null,
+      expiresOn: null,
+      rating: null,
+    });
+    expect(snapshot.raw).toBe(raw);
     expect(localStorage.getItem(STORAGE_KEY)).toBe(raw);
   });
   it("rejects stale writes from another tab", async () => {
