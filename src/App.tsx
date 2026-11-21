@@ -177,16 +177,32 @@ export default function App() {
     }
   }
   function exportData() {
-    const blob = new Blob([JSON.stringify({ version: 1, tools }, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `toollog-${today()}.json`;
-    anchor.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setMessage("备份已生成，请妥善保存下载的 JSON 文件。");
+    const latest = loadTools();
+    if (latest.error) {
+      setSaveError(latest.error);
+      return;
+    }
+    try {
+      const blob = new Blob(
+        [JSON.stringify({ version: 1, tools: latest.tools }, null, 2)],
+        {
+          type: "application/json",
+        },
+      );
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `toollog-${today()}.json`;
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setMessage(
+        latest.raw === snapshot.raw
+          ? "备份已生成，请妥善保存下载的 JSON 文件。"
+          : "已备份本机最新数据。另一页面有更新，请刷新列表后再编辑。",
+      );
+    } catch {
+      setSaveError("无法生成备份，请检查浏览器下载权限后重试。");
+    }
   }
 
   const selected =

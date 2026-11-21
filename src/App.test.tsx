@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import App from "./App";
 import { loadTools, STORAGE_KEY } from "./storage";
+import { demoTools } from "./demo";
 
 it("adds and edits a tool and trial, preserving changes after remount", async () => {
   const user = userEvent.setup();
@@ -107,4 +108,47 @@ it("warns about unsaved navigation and remote changes", async () => {
   expect(
     within(screen.getByRole("status")).getByText(/另一页面已更新数据/),
   ).toBeVisible();
+});
+
+it("exports the latest persisted library rather than a stale tab snapshot", async () => {
+  const user = userEvent.setup();
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({ version: 1, tools: [demoTools[0]] }),
+  );
+  render(<App />);
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({ version: 1, tools: demoTools }),
+  );
+  fireEvent(window, new StorageEvent("storage", { key: STORAGE_KEY }));
+  let contents = "";
+  const OriginalBlob = Blob;
+  vi.stubGlobal(
+    "Blob",
+    class extends OriginalBlob {
+      constructor(parts: BlobPart[], options?: BlobPropertyBag) {
+        super(parts, options);
+        contents = String(parts[0]);
+      }
+    },
+  );
+  vi.stubGlobal(
+    "URL",
+    class extends URL {
+      static createObjectURL() {
+        return "blob:backup";
+      }
+      static revokeObjectURL() {}
+    },
+  );
+  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  try {
+    await user.click(screen.getByRole("button", { name: "导出备份" }));
+    expect(JSON.parse(contents).tools).toHaveLength(6);
+    expect(screen.getByRole("status")).toHaveTextContent("另一页面有更新");
+    expect(screen.queryByText("Raycast")).not.toBeInTheDocument();
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });
